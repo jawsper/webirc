@@ -18,7 +18,14 @@ setup(
     description='Web-based IRC client.',
     long_description=open('README.rst').read(),
     install_requires=[
+        'python-dateutil',
+        'django',
+        'django-widget-tweaks',
+        'channels',
+        'asgi_redis',
+        'irc',
     ],
+
     classifiers=[
         'Development Status :: 1 - Planning',
         'License :: OSI Approved :: MIT License',

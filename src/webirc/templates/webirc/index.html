@@ -1,0 +1,46 @@
+{% extends "webirc/base.html" %}
+
+{% block content %}
+<div id="tab_container"><!-- tab_container -->
+	<ul class="nav nav-tabs" role="tablist"></ul>
+	<div class="tab-content"></div>
+</div><!-- EOF tab_container -->
+<br>
+<form id="form_input">
+	<div class="form-group">
+		<!-- <label for="input">Message</label> -->
+		<input id="input" class="form-control input" placeholder="Message">
+		<button class="send" type="submit">Send</button>
+	</div>
+</form>
+
+{% verbatim %}
+<template id="template-tab">
+	<li id="tab_{{ tab_id }}" class="tab-nav" data-id="{{ tab_id }}" role="presentation">
+		<a href="#panel_{{ tab_id }}" role="tab" data-toggle="tab"><span class="title">{{ tab_title }}</span> <span class="close-tab glyphicon glyphicon-remove" title="Close tab"></span></a>
+	</li>
+</template>
+<template id="template-tabpanel">
+	<div role="tabpanel" class="tab-pane" data-id="{{ tab_id }}" id="panel_{{ tab_id }}">
+		<div class="row">
+			<div class="col-sm-10 col-md-10 output-parent">
+				<div class="col-sm-12 col-md-12 output"></div>
+			</div>
+			<div class="col-sm-2 col-md-2 names-parent">
+				<div class="names"></div>
+			</div>
+		</div>
+	</div>
+</template>
+<template id="template-message">
+<div class="message-separator"></div>
+<div class="message" id="message-{{ id }}">
+	<span class="sender">{{ sender }}</span> <span class="time" title="{{ time }}">{{ time }}</span><br />
+	<span class="text">{{ text }}</span>
+</div>
+</template>
+<template id="template-name">
+<div class="name">{{ name }}</div>
+</template>
+{% endverbatim %}
+{% endblock content %}

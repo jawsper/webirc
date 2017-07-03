@@ -1,0 +1,73 @@
+body { padding-top: 70px; }
+
+.names {
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+.output-parent, .names-parent
+{
+    position: relative;
+    height: 400px;
+}
+.output 
+{
+    position: absolute;
+    bottom: 0px;
+    right: 0px;
+    left: 0px;
+    overflow-y: auto;
+    max-height: 100%;
+}
+
+.send
+{
+    display: none;
+}
+
+.close-tab
+{
+	cursor: pointer;
+}
+
+.tab-nav.unread .title
+{
+	font-weight: bold;
+}
+.tab-nav.mention .title
+{
+	color: red;
+}
+
+.tab-content {
+    border-left: 1px solid #ddd;
+    border-right: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    padding: 10px;
+}
+
+.nav-tabs
+{
+    margin-bottom: 0;
+}
+
+.message-separator
+{
+    border-bottom: 1px solid #ccc;
+}
+
+.message .sender {
+    font-weight: bolder;
+    font-size: 1.2em;
+}
+.message .time {
+    font-size: .8em;
+    color: #888;
+}
+
+.connection-status {
+    color: red;
+}
+.connection-status.connected {
+    color: green;
+}
