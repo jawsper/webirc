@@ -9,7 +9,7 @@
 <form id="form_input">
 	<div class="form-group">
 		<!-- <label for="input">Message</label> -->
-		<input id="input" class="form-control input" placeholder="Message">
+		<input id="input" class="form-control input" placeholder="Message" autocomplete="off">
 		<button class="send" type="submit">Send</button>
 	</div>
 </form>
@@ -23,6 +23,9 @@
 <template id="template-tabpanel">
 	<div role="tabpanel" class="tab-pane" data-id="{{ tab_id }}" id="panel_{{ tab_id }}">
 		<div class="row">
+			<div class="col-sm-10 col-md-10">
+			<div class="topic-parent"><span class="topic">{{ topic }}</span></div></div>
+			<div class="col-sm-2 col-md-2 names-header">{{ names }}</div>
 			<div class="col-sm-10 col-md-10 output-parent">
 				<div class="col-sm-12 col-md-12 output"></div>
 			</div>
@@ -33,10 +36,38 @@
 	</div>
 </template>
 <template id="template-message">
-<div class="message-separator"></div>
-<div class="message" id="message-{{ id }}">
-	<span class="sender">{{ sender }}</span> <span class="time" title="{{ time }}">{{ time }}</span><br />
-	<span class="text">{{ text }}</span>
+<div class="event event-message" id="event-{{ id }}">
+	<span class="name" title="{{ raw_source }}">{{ name_wrapper_l }}{{ source }}{{ name_wrapper_r }}</span> <span class="time" title="{{ time }}">{{ time }}</span><br />
+	<span class="text">{{{ text }}}</span>
+</div>
+</template>
+<template id="template-join">
+<div class="event event-info" id="event-{{ id }}">
+<span class="text"><span class="name" title="{{ raw_source }}">{{ source }}</span> joined the channel</span> <span class="time" title="{{ time}}">{{ time }}</span>
+</div>
+</template>
+<template id="template-part">
+<div class="event event-info" id="event-{{ id }}">
+<span class="text"><span class="name" title="{{ raw_source }}">{{ source }}</span> left the channel {{ reason }}</span> <span class="time" title="{{ time}}">{{ time }}</span>
+</div>
+</template>
+<template id="template-kick">
+<div class="event event-info" id="event-{{ id }}">
+<span class="text"><span class="name" title="{{ raw_source }}">{{ source }}</span> kicked <span class="name" title="{{ raw_target }}">{{ target }}</span> from the channel {{ reason }}</span> <span class="time" title="{{ time}}">{{ time }}</span>
+</div>
+</template>
+<template id="template-quit">
+<div class="event event-info" id="event-{{ id }}">
+	<span class="text">
+		<span class="name" title="{{ raw_source }}">{{ source }}</span>
+		quit {{ reason  }}
+		<span class="time" title="{{ time}}">{{ time }}</span>
+	</span>
+</div>
+</template>
+<template id="template-event">
+<div class="event event-info" id="event-{{ id }}">
+{{ text }}
 </div>
 </template>
 <template id="template-name">

@@ -12,3 +12,13 @@ class IRCServerAdmin(admin.ModelAdmin):
 @admin.register(models.IRCScreen)
 class IRCScreenAdmin(admin.ModelAdmin):
     pass
+
+@admin.register(models.Event)
+class EventAdmin(admin.ModelAdmin):
+    pass
+@admin.register(models.Message)
+class MessageAdmin(admin.ModelAdmin):
+    pass
+@admin.register(models.EnterExitEvent)
+class EnterExitEventAdmin(admin.ModelAdmin):
+    pass

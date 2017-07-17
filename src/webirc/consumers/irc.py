@@ -2,77 +2,141 @@ from channels.generic import BaseConsumer
 from channels.generic.websockets import JsonWebsocketConsumer
 import logging
 from collections import namedtuple
-from webirc.models import Message, Screen, IRCScreen, IRCServer
-from django.utils import timezone
+from webirc.models import Message, EnterExitEvent, IRCScreen, IRCServer
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 Event = namedtuple('Event', ('type', 'source', 'target', 'arguments', 'tags'))
 
+def get_or_create_screen(server, target):
+    try:
+        irc_screen = IRCScreen.objects.get(server=server, target=target)
+    except IRCScreen.DoesNotExist:
+        logger.info(f'screen {target} on {server} does not exist, creating')
+        irc_screen = IRCScreen.objects.create_screen(
+            user=server.user,
+            title=f'{server.name} - {target}',
+
+            server=server,
+            target=target
+        )
+    return irc_screen
 
 class IRCConsumer(BaseConsumer):
     method_mapping = {
         'irc.receive': 'irc_receive',
-        # 'irc.send': 'irc_send',
     }
 
-    def _nick_to_sender(self, nick):
-        return nick.split('!')[0]
-
-
-    def _convert_pubmsg(self, content):
-        return {
-            'tabs': {
-                content['target']: content['target']
-            },
-            'messages': {
-                content['target']: [
-                    {
-                        'text': '<{}> {}'.format(self._nick_to_sender(content['source']), content['arguments'][0])
-                    }
-                ]
-            }
-        }
-    def _convert_privmsg(self, content):
-        return {
-            'tabs': {
-                self._nick_to_sender(content['source']): content['source']
-            },
-            'messages': {
-                self._nick_to_sender(content['source']): [
-                    {
-                        'text': '<{}> {}'.format(self._nick_to_sender(content['source']), content['arguments'][0])
-                    }
-                ]
-            }
-        }
-
     def on_privmsg(self, server, event):
-        logger.info(f'"{server}": privmsg: {event.arguments[0]}')
-        try:
-            irc_screen = IRCScreen.objects.get(server=server, target=event.target)
-        except IRCScreen.DoesNotExist:
-            logger.info(f'screen {event.target} on {server} does not exist, creating')
-            screen = Screen(user=server.user, title=f'{server.name} - {event.target}')
-            screen.save()
-            irc_screen = IRCScreen(screen=screen, server=server, target=event.target)
-            irc_screen.save()
+        # logger.info(f'"{server}": {event.type}: {event.arguments[0]}')
+        irc_screen = get_or_create_screen(server, event.target)
 
-        logger.info(f'IRCScreen: {irc_screen}')
-        logger.info(f'Screen title: {irc_screen.screen.title}')
+        message_type = Message.TYPE_PRIVMSG
+        if 'notice' in event.type:
+            message_type = Message.TYPE_NOTICE
+        elif event.type == 'action':
+            message_type = Message.TYPE_ACTION
 
-        message = Message(
+        Message.objects.create_event(
             screen=irc_screen.screen,
+            type=message_type,
             sender=event.source,
-            moment=timezone.now(),
             text=event.arguments[0]
-            )
-        message.save()
+        )
+
+    on_pubmsg = on_privmsg
+    on_pubnotice = on_privmsg
+    on_privnotice = on_privmsg
+    on_action = on_privmsg
 
 
-    def on_pubmsg(self, server, event):
-        self.on_privmsg(server, event)
+    def on_join(self, server, event):
+        irc_screen = get_or_create_screen(server, event.target)
+        EnterExitEvent.objects.create_event(
+            screen=irc_screen.screen,
+
+            type=EnterExitEvent.TYPE_JOIN,
+            source=event.source)
+    def on_part(self, server, event):
+        irc_screen = get_or_create_screen(server, event.target)
+        create_args = dict(
+            screen=irc_screen.screen,
+
+            type=EnterExitEvent.TYPE_PART,
+            source=event.source
+        )
+        if len(event.arguments) > 0:
+            create_args['reason'] = event.arguments[0]
+        EnterExitEvent.objects.create_event(**create_args)
+
+    def on_kick(self, server, event):
+        """
+            kick event:
+                type = "kick"
+                source = person who kicks
+                target = channel from which is kicked
+                arguments[0] = person who gets kicked
+                arguments[1] = kick reason
+        """
+        irc_screen = get_or_create_screen(server, event.target)
+        event = EnterExitEvent.objects.create_event(
+            screen=irc_screen.screen,
+
+            type=EnterExitEvent.TYPE_KICK,
+            source=event.source,
+            target=event.arguments[0],
+            reason=event.arguments[1])
+
+    def on_quit(self, server, event):
+        """
+            quit event:
+                type = "quit"
+                source = person who quits
+                target = None
+                arguments[0] = quit reason
+        """
+        logger.debug(f'on_quit {event}')
+
+    def on_webirc_names(self, server, event):
+        channel, names = event.arguments
+        logger.debug(f'on_webirc_names (channel {channel} has {len(names)} names)')
+        # print(channel, names)
+
+        try:
+            irc_screen = IRCScreen.objects.get(server=server, target=channel)
+        except IRCScreen.DoesNotExist:
+            return
+
+        group = f'user-{irc_screen.screen.user.id}'
+
+        JsonWebsocketConsumer.group_send(group, {
+            'names':
+            {
+                str(irc_screen.screen.id): names
+            }
+        })
+
+    def on_currenttopic(self, server, event):
+        channel, topic = event.arguments
+        print(f'on_currenttopic(channel: {channel}, topic: {topic})')
+
+        try:
+            irc_screen = IRCScreen.objects.get(server=server, target=channel)
+        except IRCScreen.DoesNotExist:
+            return
+
+        irc_screen.topic = topic
+        irc_screen.save(update_fields=['topic'])
+
+        # group = f'user-{irc_screen.screen.user.id}'
+
+        # JsonWebsocketConsumer.group_send(group, {
+        #     'topics':
+        #     {
+        #         str(irc_screen.screen.id): topic
+        #     }
+        # })
 
     def irc_receive(self, message, **kwargs):
         logger.debug(f'irc_receive({message.content})')
@@ -89,7 +153,3 @@ class IRCConsumer(BaseConsumer):
 
         method = getattr(self, f'on_{event.type}', do_nothing)
         method(server, event)
-
-    def irc_send(self, message, **kwargs):
-        print('irc_send({})'.format(message), kwargs)
-        print(message.content)

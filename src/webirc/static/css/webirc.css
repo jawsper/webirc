@@ -5,10 +5,21 @@ body { padding-top: 70px; }
     overflow-y: auto;
 }
 
+.topic-parent
+{
+    width: 100%;
+    height: 3em;
+    overflow-x: auto;
+    white-space: nowrap;
+    border-bottom: 1px solid red;
+}
+.topic {
+}
+
 .output-parent, .names-parent
 {
     position: relative;
-    height: 400px;
+    height: 350px;
 }
 .output 
 {
@@ -51,23 +62,29 @@ body { padding-top: 70px; }
     margin-bottom: 0;
 }
 
-.message-separator
+.event 
 {
-    border-bottom: 1px solid #ccc;
+    border-top: 1px solid #ccc;
+    padding-top: 1px;
+    margin-top: 1px;
 }
 
-.message .sender {
+.event .sender, .event .name
+{
     font-weight: bolder;
     font-size: 1.2em;
 }
-.message .time {
+.event .time
+{
     font-size: .8em;
     color: #888;
 }
 
-.connection-status {
+.connection-status
+{
     color: red;
 }
-.connection-status.connected {
+.connection-status.connected
+{
     color: green;
 }

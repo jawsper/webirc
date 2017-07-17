@@ -2,8 +2,7 @@ from django.utils import timezone
 from dateutil.parser import parse as date_parse
 from channels import Channel
 from channels.generic.websockets import JsonWebsocketConsumer
-from webirc.models import IRCScreen, Screen, Message
-from collections import defaultdict
+from webirc.models import IRCScreen, Screen, Message, EnterExitEvent
 
 
 from django.dispatch import receiver
@@ -13,17 +12,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 @receiver(post_save, sender=Message)
+@receiver(post_save, sender=EnterExitEvent)
 def broadcast_message(sender, instance, **kwargs):
-    logger.info('message-save')
-    group = f'user-{instance.screen.user.id}'
+    # logger.info('message-save')
+    event = instance.event
+    group = f'user-{event.screen.user.id}'
     JsonWebsocketConsumer.group_send(group, {
-        'messages':
+        'events':
         {
-            str(instance.screen.id): [
-                instance.serialize()
-            ]
+            str(event.screen.id): [event.serialize()]
         }
     })
+
+@receiver(post_save, sender=IRCScreen)
+def on_ircscreen_save(sender, instance, update_fields, **kwargs):
+    logger.info(f'ircscreen-save {instance} {kwargs}')
+    if 'topic' in update_fields:
+        group = f'user-{instance.screen.user.id}'
+
+        JsonWebsocketConsumer.group_send(group, {
+            'topics':
+            {
+                str(instance.screen.id): instance.topic
+            }
+        })
+
 
 class MyConsumer(JsonWebsocketConsumer):
     http_user_and_session = True
@@ -39,83 +52,103 @@ class MyConsumer(JsonWebsocketConsumer):
     def connect(self, message, **kwargs):
         super().connect(message, **kwargs)
         screens_dict = {}
+        topics_dict = {}
         # messages_dict = defaultdict(list)
         for screen in Screen.objects.filter(user=message.user):
             screens_dict[screen.id] = screen.title
+        for irc_screen in IRCScreen.objects.filter(screen__user=message.user):
+            topics_dict[irc_screen.screen.id] = irc_screen.topic
+            Channel(f'irc.send.{irc_screen.server.id}').send({
+                'type': 'names',
+                'channel': irc_screen.target
+            })
+
             # for message in Message.objects.filter(screen=screen):
             #     messages_dict[str(screen.id)].append(message.serialize())
 
         for group in self.connection_groups():
             self.group_send(group, {
                 'screens': screens_dict,
-                'names': {
-                    1: ['alice', 'bob', 'carl'] * 20
-                }
+                'topics': topics_dict,
             })
 
     def raw_receive(self, message, **kwargs):
         self.groups = ['user-{}'.format(message.user.id)]
         super().raw_receive(message, user=message.user, **kwargs)
 
-    def receive(self, message, user=None, **kwargs):
-        print(message)
-        if not 'action' in message:
+    def receive(self, event, user=None, **kwargs):
+        if not 'action' in event:
             return
 
-        if message['action'] == 'message':
-            if not 'screen_id' in message or not 'text' in message:
+        if event['action'] == 'message':
+            if not 'screen_id' in event or not 'text' in event:
                 return
 
             try:
-                screen = Screen.objects.get(user=user, id=message['screen_id'])
+                screen = Screen.objects.get(user=user, id=event['screen_id'])
             except Screen.DoesNotExist:
-                print(f'invalid screen: {message["screen_id"]}')
+                logger.debug(f'invalid screen: {event["screen_id"]}')
                 return
-            print(screen)
 
             try:
                 irc_screen = IRCScreen.objects.get(screen=screen)
             except IRCScreen.DoesNotExist:
-                print('invalid irc screen?')
+                logger.debug('invalid irc screen?')
                 return
 
             channel = f'irc.send.{irc_screen.server.id}'
             raw_message = {
                 'type': 'privmsg',
                 'target': irc_screen.target,
-                'text': message['text']
+                'text': event['text']
             }
             Channel(channel).send(raw_message)
-        elif message['action'] == 'load_messages':
-            if not 'screen_id' in message:
+        elif event['action'] == 'load_events':
+            if not 'screen_id' in event:
                 return
 
             try:
-                screen = Screen.objects.get(user=user, id=message['screen_id'])
+                screen = Screen.objects.get(user=user, id=event['screen_id'])
             except Screen.DoesNotExist:
-                print('invalid screen: {}'.format(message['screen_id']))
+                logger.debug(f'invalid screen: {event["screen_id"]}')
                 return
 
-            if 'moment' in message:
-                moment = date_parse(message['moment'])
-                before = message.get('before', False)
+            if 'moment' in event:
+                moment = date_parse(event['moment'])
+                before = event.get('before', False)
             else:
                 moment = timezone.now()
                 before = True
 
-            print(screen, moment, before)
+            logger.debug(f'screen: {screen}, moment: {moment}, before: {before}')
 
             params = dict(screen=screen)
             params['moment__lt' if before else 'moment__gt'] = moment
 
-            message_query = Message.objects.filter(**params)
+            event_query = screen.event_set.filter(**params)
 
             self.send({
-                'messages':
+                'events':
                 {
                     str(screen.id): [
-                        message.serialize() for message in message_query
+                        event.serialize() for event in reversed(event_query.order_by('-moment')[:100])
                     ]
+                }
+            })
+        elif event['action'] == 'screen_name':
+            if not 'screen_id' in event:
+                return
+
+            try:
+                screen = Screen.objects.get(user=user, id=event['screen_id'])
+            except Screen.DoesNotExist:
+                logger.debug(f'invalid screen: {event["screen_id"]}')
+                return
+
+            self.send({
+                'screens':
+                {
+                    str(screen.id): screen.title
                 }
             })
 
