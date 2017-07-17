@@ -11,4 +11,4 @@ Planned features:
 + django
 + django-channels
 + websockets
-+ angularjs
++ react

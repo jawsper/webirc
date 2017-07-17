@@ -23,5 +23,6 @@ urlpatterns = [
     url(r'^admin/', admin.site.urls),
     url(r'^accounts/login/$', login, name='login'),
     url(r'^accounts/logout/$', logout, {'next_page': '/'}, name='logout'),
+    url(r'^react$', views.ReactTestView.as_view()),
     url(r'^$', views.IndexView.as_view()),
 ]
